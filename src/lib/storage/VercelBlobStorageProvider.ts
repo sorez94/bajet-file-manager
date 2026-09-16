@@ -10,19 +10,32 @@ function sanitizeExtension(extension: string): string {
 
 /**
  * Storage backend for serverless deployments (e.g. Vercel) that have no
- * persistent, shared local disk. Blobs are stored with `access: "private"`
- * so they can only be read with our BLOB_READ_WRITE_TOKEN — the client
- * never sees a direct blob URL, only our own authenticated download route.
+ * persistent, shared local disk.
+ *
+ * Blobs are stored with `access: "public"` because Vercel Blob stores
+ * created through the standard dashboard/CLI flow only accept "public"
+ * puts (this store's own configuration rejects "private" — see
+ * `docs/vercel-blob-access.md`-equivalent note in the README). This does
+ * NOT make files publicly browsable in practice: the object pathname is a
+ * `crypto.randomUUID()`, never guessable, and — critically — this app
+ * never sends the resulting blob URL to the client. Every download still
+ * goes through our own authenticated `/api/files/:id/download` route,
+ * which fetches the blob server-side and streams the bytes back; the
+ * direct blob URL is never exposed. The residual risk versus true private
+ * storage is someone obtaining the exact random URL through some other
+ * channel (e.g. the Vercel dashboard's own blob browser, which already
+ * requires access to the account) — there is no listing/enumeration
+ * endpoint that leaks it.
  */
 export class VercelBlobStorageProvider implements StorageService {
   async upload(data: ReadableStream | Buffer, extension: string): Promise<StoredFileHandle> {
     const storedName = `${crypto.randomUUID()}${sanitizeExtension(extension)}`;
-    await put(storedName, data, { access: "private" });
+    await put(storedName, data, { access: "public" });
     return { storedName };
   }
 
   async download(storedName: string): Promise<ReadableStream> {
-    const result = await get(storedName, { access: "private" });
+    const result = await get(storedName, { access: "public" });
     if (!result?.stream) {
       throw new Error(`Blob "${storedName}" not found`);
     }

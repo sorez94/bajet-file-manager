@@ -167,10 +167,10 @@ not touching upload/download/delete routes or the UI.
   development and any host with a persistent, writable filesystem (a VPS,
   a container with a mounted volume, etc).
 - **`VercelBlobStorageProvider`** (`src/lib/storage/VercelBlobStorageProvider.ts`) —
-  stores files in [Vercel Blob](https://vercel.com/docs/vercel-blob) as
-  **private** objects. Required on Vercel: serverless functions have no
-  persistent, shared local disk, so `LocalStorageProvider` cannot work
-  there (see [Vercel deployment](#8-vercel-deployment)).
+  stores files in [Vercel Blob](https://vercel.com/docs/vercel-blob).
+  Required on Vercel: serverless functions have no persistent, shared local
+  disk, so `LocalStorageProvider` cannot work there (see
+  [Vercel deployment](#8-vercel-deployment)).
 
 `getStorageProvider()` (`src/lib/storage/index.ts`) picks between them: set
 `STORAGE_DRIVER=local` or `STORAGE_DRIVER=vercel-blob` explicitly, or leave
@@ -178,10 +178,17 @@ it unset to auto-detect — `vercel-blob` is used automatically whenever
 `BLOB_READ_WRITE_TOKEN` or `BLOB_STORE_ID` is present (Vercel injects one or
 the other once you connect a Blob store to the project — which one depends
 on how it was connected; the `@vercel/blob` SDK handles either
-transparently), `local` otherwise. Blobs are stored with
-`access: "private"`, so — like local files — they're only ever reachable
-through this app's own authenticated `/api/files/:id/download` route, never
-via a directly guessable URL.
+transparently), `local` otherwise.
+
+Blobs are uploaded with `access: "public"` — the standard Blob store setup
+only accepts public puts (a "private" put is rejected with "The store must
+be configured with private access" unless the store itself was specially
+provisioned for it). This is weaker than true private storage, but the
+practical exposure is limited: the object's pathname is a
+`crypto.randomUUID()` (never guessable), and — just as with local files —
+this app **never sends the blob URL to the client**. Every download still
+goes through this app's own authenticated `/api/files/:id/download` route,
+which fetches the blob server-side and streams the bytes back.
 
 ### Storage directory configuration and precedence (local driver only)
 

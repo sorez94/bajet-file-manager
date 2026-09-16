@@ -25,8 +25,9 @@ export function StorageSettingsForm({ driver, initialPath }: StorageSettingsForm
           This deployment stores uploaded files in{" "}
           <span className="font-medium text-slate-700">Vercel Blob</span>.
           There is no local directory to configure — Vercel manages storage
-          for this backend. Blobs are stored as private and are only
-          reachable through this app&apos;s authenticated download endpoint.
+          for this backend. Files are only reachable through this
+          app&apos;s authenticated download endpoint; their storage URLs are
+          never sent to the browser.
         </p>
       </div>
     );
