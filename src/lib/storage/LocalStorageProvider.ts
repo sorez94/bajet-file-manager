@@ -37,17 +37,14 @@ export class LocalStorageProvider implements StorageService {
     const storedName = `${crypto.randomUUID()}${sanitizeExtension(extension)}`;
     const fullPath = resolveWithinRoot(root, storedName);
 
-    let size = 0;
     if (Buffer.isBuffer(data)) {
       await fs.writeFile(fullPath, data);
-      size = data.byteLength;
     } else {
       const nodeStream = Readable.fromWeb(data as NodeWebReadableStream);
       const fileHandle = await fs.open(fullPath, "w");
       try {
         const writeStream = fileHandle.createWriteStream();
         for await (const chunk of nodeStream) {
-          size += chunk.length;
           if (!writeStream.write(chunk)) {
             await new Promise<void>((resolve) =>
               writeStream.once("drain", () => resolve()),
@@ -64,7 +61,7 @@ export class LocalStorageProvider implements StorageService {
       }
     }
 
-    return { storedName, size };
+    return { storedName };
   }
 
   async download(storedName: string): Promise<ReadableStream> {

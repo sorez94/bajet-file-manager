@@ -2,7 +2,7 @@ import "server-only";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { files, users, type FileRecord } from "@/lib/db/schema";
-import { localStorageProvider } from "@/lib/storage/LocalStorageProvider";
+import { getStorageProvider } from "@/lib/storage";
 import { sanitizeOriginalName, getExtension } from "@/lib/utils/filename";
 import { ALLOWED_MIME_TYPES } from "@/lib/validation/schemas";
 
@@ -64,15 +64,16 @@ export async function uploadFile(
 
   const originalName = sanitizeOriginalName(file.name);
   const extension = getExtension(originalName);
+  const storage = getStorageProvider();
 
-  const handle = await localStorageProvider.upload(file.stream(), extension);
+  const handle = await storage.upload(file.stream(), extension);
 
   const record: FileRecord = {
     id: crypto.randomUUID(),
     originalName,
     storedName: handle.storedName,
     mimeType,
-    size: handle.size,
+    size: file.size,
     storagePath: handle.storedName,
     uploadedBy,
     createdAt: new Date().toISOString(),
@@ -82,8 +83,8 @@ export async function uploadFile(
   try {
     await db.insert(files).values(record);
   } catch (err) {
-    // Keep filesystem and database consistent if the metadata write fails.
-    await localStorageProvider.delete(handle.storedName);
+    // Keep storage and database consistent if the metadata write fails.
+    await storage.delete(handle.storedName);
     throw err;
   }
 
@@ -94,7 +95,7 @@ export async function deleteFileRecord(id: string): Promise<void> {
   const record = await getFileById(id);
   if (!record) throw new Error("File not found.");
 
-  await localStorageProvider.delete(record.storagePath);
+  await getStorageProvider().delete(record.storagePath);
   await db.delete(files).where(eq(files.id, id));
 }
 

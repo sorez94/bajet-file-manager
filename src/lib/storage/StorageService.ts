@@ -1,15 +1,16 @@
+export type StorageDriver = "local" | "vercel-blob";
+
 export interface StoredFileHandle {
-  /** Provider-internal identifier for the physical object (e.g. a filename). */
+  /** Provider-internal identifier for the physical object (a filename for local disk, a blob pathname for Vercel Blob, etc). */
   storedName: string;
-  /** Number of bytes written. */
-  size: number;
 }
 
 /**
- * Abstraction over "where the bytes actually live". The local filesystem
- * implementation is the only one used today, but every call site in this
- * app talks to this interface so the physical backend could later be
- * swapped for S3-compatible storage without touching route handlers or UI.
+ * Abstraction over "where the bytes actually live". Two implementations
+ * exist today — local filesystem and Vercel Blob (see index.ts for how the
+ * active one is picked) — and every call site in this app talks to this
+ * interface so the physical backend could be swapped again (e.g. for S3)
+ * without touching route handlers or UI.
  */
 export interface StorageService {
   /** Persists a stream/buffer under a new, provider-generated name. Never trusts caller-supplied paths. */

@@ -1,6 +1,6 @@
 import { requireApiUser } from "@/lib/auth/guards";
 import { getFileById } from "@/server/services/fileService";
-import { localStorageProvider } from "@/lib/storage/LocalStorageProvider";
+import { getStorageProvider } from "@/lib/storage";
 import { handleApiError, jsonError } from "@/lib/api/response";
 
 export const runtime = "nodejs";
@@ -16,7 +16,8 @@ export async function GET(
     const record = await getFileById(id);
     if (!record) return jsonError("File not found.", 404);
 
-    const exists = await localStorageProvider.exists(record.storagePath);
+    const storage = getStorageProvider();
+    const exists = await storage.exists(record.storagePath);
     if (!exists) {
       return jsonError(
         "The file is missing from storage. It may need to be removed.",
@@ -24,7 +25,7 @@ export async function GET(
       );
     }
 
-    const stream = await localStorageProvider.download(record.storagePath);
+    const stream = await storage.download(record.storagePath);
     const encodedName = encodeURIComponent(record.originalName);
 
     return new Response(stream, {

@@ -4,7 +4,7 @@ import { StorageSettingsForm } from "@/components/settings/StorageSettingsForm";
 
 export default async function StorageSettingsPage() {
   await requireSuperAdmin();
-  const { path } = await getStorageSettings();
+  const { driver, path } = await getStorageSettings();
 
-  return <StorageSettingsForm initialPath={path} />;
+  return <StorageSettingsForm driver={driver} initialPath={path} />;
 }

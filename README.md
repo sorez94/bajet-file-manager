@@ -8,7 +8,7 @@ storage configuration.
 - **Framework:** Next.js (App Router) + React + TypeScript + Tailwind CSS
 - **Database:** Turso / libSQL via Drizzle ORM (runs as a local SQLite file by default — no external service required for local dev)
 - **Auth:** Custom cookie-based sessions, Argon2/bcrypt-family password hashing (`bcryptjs`), server-enforced RBAC
-- **File storage:** Local filesystem, behind a small `StorageService` abstraction (see [Storage architecture](#storage-architecture))
+- **File storage:** Local filesystem by default, or Vercel Blob when deployed to Vercel — both behind a small `StorageService` abstraction (see [Storage architecture](#4-storage-architecture))
 
 ---
 
@@ -139,16 +139,16 @@ The database and the filesystem are two separate, independent stores:
 - **Turso/libSQL (via Drizzle)** stores only *metadata*: `users`, `files`
   (original name, generated internal name, MIME type, size, uploader,
   timestamps), and `settings` (currently just the storage path).
-- **The local filesystem** stores the actual file bytes, under a
-  configurable root directory. **No binary content ever touches the
+- **The physical storage backend** (local disk or Vercel Blob — see below)
+  stores the actual file bytes. **No binary content ever touches the
   database.**
 
-Filesystem access is isolated behind a small interface
+File access is isolated behind a small interface
 (`src/lib/storage/StorageService.ts`):
 
 ```ts
 interface StorageService {
-  upload(data, extension): Promise<{ storedName, size }>;
+  upload(data, extension): Promise<{ storedName }>;
   download(storedName): Promise<ReadableStream>;
   delete(storedName): Promise<void>;
   exists(storedName): Promise<boolean>;
@@ -156,13 +156,32 @@ interface StorageService {
 }
 ```
 
-`LocalStorageProvider` (`src/lib/storage/LocalStorageProvider.ts`) is the
-only implementation today. Every route handler and service talks to this
-interface, not to `fs` directly — swapping in an S3-compatible backend later
-means writing one new class, not touching upload/download/delete routes or
-the UI.
+Every route handler and service talks to this interface, never to `fs` (or
+any storage SDK) directly — swapping backends means writing one new class,
+not touching upload/download/delete routes or the UI.
 
-### Storage directory configuration and precedence
+### Two backends, picked automatically
+
+- **`LocalStorageProvider`** (`src/lib/storage/LocalStorageProvider.ts`) —
+  writes to a configurable directory on local disk. Used for local
+  development and any host with a persistent, writable filesystem (a VPS,
+  a container with a mounted volume, etc).
+- **`VercelBlobStorageProvider`** (`src/lib/storage/VercelBlobStorageProvider.ts`) —
+  stores files in [Vercel Blob](https://vercel.com/docs/vercel-blob) as
+  **private** objects. Required on Vercel: serverless functions have no
+  persistent, shared local disk, so `LocalStorageProvider` cannot work
+  there (see [Vercel deployment](#8-vercel-deployment)).
+
+`getStorageProvider()` (`src/lib/storage/index.ts`) picks between them: set
+`STORAGE_DRIVER=local` or `STORAGE_DRIVER=vercel-blob` explicitly, or leave
+it unset to auto-detect — `vercel-blob` is used automatically whenever
+`BLOB_READ_WRITE_TOKEN` is present (which Vercel injects once you link a
+Blob store to the project), `local` otherwise. Blobs are stored with
+`access: "private"`, so — like local files — they're only ever reachable
+through this app's own authenticated `/api/files/:id/download` route, never
+via a directly guessable URL.
+
+### Storage directory configuration and precedence (local driver only)
 
 Configurable via **`/dashboard/settings/storage`** (super admin only), which:
 - validates the path exists (or offers to create it),
@@ -349,7 +368,68 @@ Run the app itself under a process manager (systemd unit or `pm2 start npm
 
 ---
 
-## 9. API overview
+## 9. Vercel deployment
+
+Vercel's serverless functions have no persistent, shared local disk (only an
+ephemeral `/tmp` that isn't shared across instances), so the two local-first
+defaults from local dev need to change:
+
+1. **Database:** must be a real hosted Turso database — a local `file:` URL
+   has nowhere persistent to live on Vercel.
+2. **File storage:** must use the `vercel-blob` driver (see
+   [Storage architecture](#4-storage-architecture)) instead of local disk.
+
+### One-time setup
+
+```bash
+# 1. Create the Turso database (see §2 above) and note its URL + token.
+
+# 2. Create a Vercel Blob store and link it to this project — this makes
+#    Vercel inject BLOB_READ_WRITE_TOKEN automatically at build/runtime,
+#    which the app uses to auto-select the vercel-blob storage driver.
+npx vercel link
+npx vercel blob store add file-manager-uploads
+
+# 3. Run the DB migration + initial super admin creation against the real
+#    Turso database from your machine (Vercel doesn't run one-off scripts):
+TURSO_DATABASE_URL=libsql://... TURSO_AUTH_TOKEN=... \
+INITIAL_ADMIN_EMAIL=admin@example.com INITIAL_ADMIN_PASSWORD=... \
+npm run setup
+
+# 4. Set the remaining environment variables in the Vercel project
+#    (Project Settings → Environment Variables), or via the CLI:
+npx vercel env add TURSO_DATABASE_URL
+npx vercel env add TURSO_AUTH_TOKEN
+npx vercel env add MAX_FILE_SIZE_MB
+
+# 5. Deploy
+npx vercel --prod
+```
+
+`BLOB_READ_WRITE_TOKEN` does **not** need to be set manually — Vercel
+provides it automatically for any deployment where the linked Blob store is
+attached. `STORAGE_DRIVER` also doesn't need to be set explicitly; it's only
+there as an override.
+
+### Known platform constraints
+
+- **Request body size:** Vercel enforces its own limit on serverless
+  function request bodies, independent of `MAX_FILE_SIZE_MB`. Check your
+  plan's current limit before assuming large uploads will work — very large
+  files may need a different upload path (e.g. direct-to-Blob client
+  uploads) that this app does not implement.
+- **Storage settings page:** with the `vercel-blob` driver active,
+  `/dashboard/settings/storage` shows a read-only notice instead of a path
+  form — there's no local directory to configure, and Vercel manages the
+  Blob store itself.
+- **Rate limiting:** the login throttle (`src/lib/auth/rateLimit.ts`) is
+  in-memory per function instance. On Vercel this means it resets on cold
+  starts and isn't shared across concurrent instances — treat it as a
+  best-effort mitigation, not a hard guarantee, in this environment.
+
+---
+
+## 10. API overview
 
 All endpoints below require an authenticated session unless noted; those
 marked **(admin)** additionally require `SUPER_ADMIN`.

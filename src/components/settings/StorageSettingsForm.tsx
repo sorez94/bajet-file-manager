@@ -1,13 +1,42 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { FolderCog } from "lucide-react";
+import { FolderCog, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { apiRequest, ApiError } from "@/lib/api/client";
+import type { StorageDriver } from "@/lib/storage/StorageService";
 
-export function StorageSettingsForm({ initialPath }: { initialPath: string }) {
+interface StorageSettingsFormProps {
+  driver: StorageDriver;
+  initialPath: string | null;
+}
+
+export function StorageSettingsForm({ driver, initialPath }: StorageSettingsFormProps) {
+  if (driver === "vercel-blob") {
+    return (
+      <div className="max-w-xl rounded-xl border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Cloud className="size-5 text-slate-700" aria-hidden />
+          <h1 className="text-lg font-semibold text-slate-900">Storage Configuration</h1>
+        </div>
+        <p className="text-sm text-slate-500">
+          This deployment stores uploaded files in{" "}
+          <span className="font-medium text-slate-700">Vercel Blob</span>{" "}
+          (detected via <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">BLOB_READ_WRITE_TOKEN</code>).
+          There is no local directory to configure — Vercel manages storage
+          for this backend. Blobs are stored as private and are only
+          reachable through this app&apos;s authenticated download endpoint.
+        </p>
+      </div>
+    );
+  }
+
+  return <LocalStorageSettingsForm initialPath={initialPath ?? "./storage/uploads"} />;
+}
+
+function LocalStorageSettingsForm({ initialPath }: { initialPath: string }) {
   const { show } = useToast();
   const [path, setPath] = useState(initialPath);
   const [currentPath, setCurrentPath] = useState(initialPath);
