@@ -11,6 +11,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "setup": "tsx scripts/setup.ts",
+    "reset-password": "tsx scripts/reset-password.ts",
     "test": "vitest run"
   },
   "dependencies": {

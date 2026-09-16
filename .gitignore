@@ -53,3 +53,5 @@ next-env.d.ts
 # test artifacts (see tests/globalSetup.ts)
 /.tmp-test.sqlite*
 /.tmp-test-storage/
+
+.vercel
