@@ -1,4 +1,4 @@
-import { Files, Users, Settings, type LucideIcon } from "lucide-react";
+import { Files, Users, Settings, ScrollText, type LucideIcon } from "lucide-react";
 import type { Role } from "@/types";
 
 export interface NavItem {
@@ -17,4 +17,5 @@ export const navItems: NavItem[] = [
     icon: Settings,
     roles: ["SUPER_ADMIN"],
   },
+  { href: "/dashboard/logs", label: "Logs", icon: ScrollText, roles: ["SUPER_ADMIN"] },
 ];

@@ -70,9 +70,28 @@ export const settings = sqliteTable("settings", {
     .default(sql`(current_timestamp)`),
 });
 
+export const LOG_LEVELS = ["info", "warn", "error"] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
+export const logs = sqliteTable(
+  "logs",
+  {
+    id: text("id").primaryKey(),
+    level: text("level", { enum: LOG_LEVELS }).notNull(),
+    message: text("message").notNull(),
+    // Extra structured detail (e.g. { email, route }), stored as JSON text.
+    context: text("context"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [index("logs_created_at_idx").on(table.createdAt)],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type FileRecord = typeof files.$inferSelect;
 export type NewFileRecord = typeof files.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type LogEntry = typeof logs.$inferSelect;

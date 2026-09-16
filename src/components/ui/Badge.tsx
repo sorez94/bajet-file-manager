@@ -3,13 +3,14 @@ export function Badge({
   tone = "neutral",
 }: {
   children: React.ReactNode;
-  tone?: "neutral" | "success" | "warning" | "accent";
+  tone?: "neutral" | "success" | "warning" | "accent" | "danger";
 }) {
   const tones: Record<string, string> = {
     neutral: "bg-slate-100 text-slate-700",
     success: "bg-green-100 text-green-800",
     warning: "bg-amber-100 text-amber-800",
     accent: "bg-indigo-100 text-indigo-800",
+    danger: "bg-red-100 text-red-800",
   };
   return (
     <span

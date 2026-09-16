@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/guards";
+import { logEvent } from "@/lib/logger";
 
 /**
  * Maps any thrown error to a safe HTTP response. Never leaks stack traces,
  * internal paths, or raw error messages for unexpected failures — those are
- * logged server-side instead.
+ * logged server-side (console + the `logs` table) instead.
  */
-export function handleApiError(err: unknown, context: string): NextResponse {
+export async function handleApiError(
+  err: unknown,
+  context: string,
+): Promise<NextResponse> {
   if (err instanceof UnauthorizedError) {
+    await logEvent("warn", "Unauthorized request", { route: context });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (err instanceof ForbiddenError) {
+    await logEvent("warn", "Forbidden request", { route: context });
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (err instanceof ZodError) {
@@ -21,7 +27,8 @@ export function handleApiError(err: unknown, context: string): NextResponse {
     );
   }
 
-  console.error(`[${context}]`, err);
+  const message = err instanceof Error ? err.message : String(err);
+  await logEvent("error", `Unhandled error in ${context}`, { route: context, error: message });
   return NextResponse.json(
     { error: "An unexpected error occurred." },
     { status: 500 },

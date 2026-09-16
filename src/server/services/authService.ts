@@ -7,6 +7,7 @@ import {
   recordFailedAttempt,
   clearAttempts,
 } from "@/lib/auth/rateLimit";
+import { logEvent } from "@/lib/logger";
 
 export class InvalidCredentialsError extends Error {
   constructor() {
@@ -33,22 +34,26 @@ export async function login(
 ): Promise<{ id: string; email: string; role: string }> {
   const rateLimitKey = `${clientKey}:${email}`;
   if (isRateLimited(rateLimitKey)) {
+    await logEvent("warn", "Login rate-limited", { email, clientKey });
     throw new TooManyAttemptsError();
   }
 
   const user = await getUserByEmail(email);
   if (!user) {
     recordFailedAttempt(rateLimitKey);
+    await logEvent("warn", "Failed login: unknown email", { email });
     throw new InvalidCredentialsError();
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
   if (!validPassword) {
     recordFailedAttempt(rateLimitKey);
+    await logEvent("warn", "Failed login: invalid password", { email });
     throw new InvalidCredentialsError();
   }
 
   if (!user.isActive) {
+    await logEvent("warn", "Login blocked: inactive account", { email });
     throw new AccountInactiveError();
   }
 

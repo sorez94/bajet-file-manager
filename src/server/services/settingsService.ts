@@ -5,6 +5,7 @@ import {
 } from "@/lib/storage/config";
 import { validateStorageDirectory } from "@/lib/storage/LocalStorageProvider";
 import { getStorageDriver, type StorageDriver } from "@/lib/storage";
+import { logEvent } from "@/lib/logger";
 
 export async function getStorageSettings(): Promise<{
   driver: StorageDriver;
@@ -28,7 +29,13 @@ export async function updateStorageSettings(
   }
 
   const result = await validateStorageDirectory(newPath, { createIfMissing });
-  if (!result.ok) return result;
+  if (!result.ok) {
+    await logEvent("warn", "Storage configuration validation failed", {
+      path: newPath,
+      error: result.error,
+    });
+    return result;
+  }
 
   await setConfiguredStoragePath(newPath);
   return { ok: true, path: newPath };
