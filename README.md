@@ -175,8 +175,10 @@ not touching upload/download/delete routes or the UI.
 `getStorageProvider()` (`src/lib/storage/index.ts`) picks between them: set
 `STORAGE_DRIVER=local` or `STORAGE_DRIVER=vercel-blob` explicitly, or leave
 it unset to auto-detect — `vercel-blob` is used automatically whenever
-`BLOB_READ_WRITE_TOKEN` is present (which Vercel injects once you link a
-Blob store to the project), `local` otherwise. Blobs are stored with
+`BLOB_READ_WRITE_TOKEN` or `BLOB_STORE_ID` is present (Vercel injects one or
+the other once you connect a Blob store to the project — which one depends
+on how it was connected; the `@vercel/blob` SDK handles either
+transparently), `local` otherwise. Blobs are stored with
 `access: "private"`, so — like local files — they're only ever reachable
 through this app's own authenticated `/api/files/:id/download` route, never
 via a directly guessable URL.
@@ -384,11 +386,16 @@ defaults from local dev need to change:
 ```bash
 # 1. Create the Turso database (see §2 above) and note its URL + token.
 
-# 2. Create a Vercel Blob store and link it to this project — this makes
-#    Vercel inject BLOB_READ_WRITE_TOKEN automatically at build/runtime,
-#    which the app uses to auto-select the vercel-blob storage driver.
+# 2. Create a Vercel Blob store and connect it to this project — this makes
+#    Vercel inject blob credentials automatically at build/runtime, which
+#    the app uses to auto-select the vercel-blob storage driver.
 npx vercel link
 npx vercel blob store add file-manager-uploads
+# `store add` will ask (a) whether to link it to this project, then (b)
+# which environments to connect it to via a checkbox prompt — both need a
+# real interactive terminal (they don't work through a piped/non-TTY
+# shell). If you'd rather not deal with that, create the store from the
+# dashboard's Storage tab instead and click "Connect Project" there.
 
 # 3. Run the DB migration + initial super admin creation against the real
 #    Turso database from your machine (Vercel doesn't run one-off scripts):
@@ -406,10 +413,11 @@ npx vercel env add MAX_FILE_SIZE_MB
 npx vercel --prod
 ```
 
-`BLOB_READ_WRITE_TOKEN` does **not** need to be set manually — Vercel
-provides it automatically for any deployment where the linked Blob store is
-attached. `STORAGE_DRIVER` also doesn't need to be set explicitly; it's only
-there as an override.
+Blob credentials do **not** need to be set manually — Vercel provides them
+automatically for any deployment with a connected Blob store (either as
+`BLOB_READ_WRITE_TOKEN`, or as `BLOB_STORE_ID` plus a runtime
+`VERCEL_OIDC_TOKEN`, depending on how the store was connected). `STORAGE_DRIVER`
+also doesn't need to be set explicitly; it's only there as an override.
 
 ### Known platform constraints
 
